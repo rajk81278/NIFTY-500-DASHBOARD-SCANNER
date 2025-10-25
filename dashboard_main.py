@@ -218,6 +218,60 @@ def get_cmp(symbol):
 # ==============================
 # CHART PLOTTING FUNCTION WITH AVERAGE LINE
 # ==============================
+# def plot_chart(df, sr_levels, title, show_volume=True):
+#     fig = go.Figure()
+
+#     # Candlestick
+#     fig.add_trace(go.Candlestick(
+#         x=df.index, open=df["open"], high=df["high"],
+#         low=df["low"], close=df["close"], name="Price"
+#     ))
+
+#     # Volume bars
+#     if show_volume:
+#         fig.add_trace(go.Bar(
+#             x=df.index, y=df["volume"], name="Volume", yaxis="y2", opacity=0.3
+#         ))
+
+#     # Support levels (L1 highest, L6 lowest)
+#     for i in range(1, 7):
+#         keyL = f"L{i}"
+#         if keyL in sr_levels:
+#             fig.add_hline(y=sr_levels[keyL], line_dash="dot", line_color="green",
+#                           annotation_text=f"{keyL}: {sr_levels[keyL]}",
+#                           annotation_position="top left")
+
+#     # Resistance levels (P1 highest, P6 lowest)
+#     for i in range(1, 7):
+#         keyP = f"P{i}"
+#         if keyP in sr_levels:
+#             fig.add_hline(y=sr_levels[keyP], line_dash="dot", line_color="red",
+#                           annotation_text=f"{keyP}: {sr_levels[keyP]}",
+#                           annotation_position="bottom left")
+
+#     # Average line (mean of close prices)
+#     avg_price = df["close"].mean()
+#     fig.add_hline(y=avg_price, line_dash="dash", line_color="yellow",
+#                   annotation_text=f"Avg: {avg_price:.2f}",
+#                   annotation_position="top right")
+
+#     # Layout settings
+#     fig.update_layout(
+#         title=title, xaxis_title="Date", yaxis_title="Price",
+#         template="plotly_dark", height=700, dragmode="pan",
+#         plot_bgcolor="#0d1117", paper_bgcolor="#0d1117",
+#         font=dict(color="white"), hovermode="x unified",
+#         yaxis2=dict(overlaying='y', side='right', showgrid=False, title='Volume' if show_volume else None),
+#         updatemenus=[dict(type="buttons", showactive=False,
+#                           buttons=[dict(label="Reset Zoom", method="relayout",
+#                                         args=[{"xaxis.autorange": True, "yaxis.autorange": True}])])],
+#     )
+
+#     fig.update_xaxes(showspikes=True, spikemode='across', spikecolor='white',
+#                      spikesnap='cursor', rangeslider=dict(visible=True))
+#     fig.update_yaxes(fixedrange=False, showspikes=True, spikemode='across', spikecolor='white')
+#     return fig
+
 def plot_chart(df, sr_levels, title, show_volume=True):
     fig = go.Figure()
 
@@ -249,29 +303,39 @@ def plot_chart(df, sr_levels, title, show_volume=True):
                           annotation_text=f"{keyP}: {sr_levels[keyP]}",
                           annotation_position="bottom left")
 
-    # Average line (mean of close prices)
+    # Average line
     avg_price = df["close"].mean()
     fig.add_hline(y=avg_price, line_dash="dash", line_color="yellow",
                   annotation_text=f"Avg: {avg_price:.2f}",
                   annotation_position="top right")
 
-    # Layout settings
+    # Layout and style
     fig.update_layout(
-        title=title, xaxis_title="Date", yaxis_title="Price",
-        template="plotly_dark", height=700, dragmode="pan",
-        plot_bgcolor="#0d1117", paper_bgcolor="#0d1117",
-        font=dict(color="white"), hovermode="x unified",
-        yaxis2=dict(overlaying='y', side='right', showgrid=False, title='Volume' if show_volume else None),
+        title=title,
+        xaxis_title="Date",
+        yaxis_title="Price",
+        template="plotly_dark",
+        height=700,
+        dragmode="pan",
+        plot_bgcolor="#0d1117",
+        paper_bgcolor="#0d1117",
+        font=dict(color="white"),
+        hovermode="x unified",
+        yaxis2=dict(overlaying='y', side='right', showgrid=False,
+                    title='Volume' if show_volume else None),
         updatemenus=[dict(type="buttons", showactive=False,
                           buttons=[dict(label="Reset Zoom", method="relayout",
-                                        args=[{"xaxis.autorange": True, "yaxis.autorange": True}])])],
+                                        args=[{"xaxis.autorange": True, "yaxis.autorange": True}])])]
     )
 
+    # Light gridlines (less distracting)
     fig.update_xaxes(showspikes=True, spikemode='across', spikecolor='white',
-                     spikesnap='cursor', rangeslider=dict(visible=True))
-    fig.update_yaxes(fixedrange=False, showspikes=True, spikemode='across', spikecolor='white')
-    return fig
+                     spikesnap='cursor', rangeslider=dict(visible=True),
+                     showgrid=True, gridcolor="rgba(255,255,255,0.05)")
+    fig.update_yaxes(fixedrange=False, showspikes=True, spikemode='across',
+                     spikecolor='white', showgrid=True, gridcolor="rgba(255,255,255,0.05)")
 
+    return fig
 
 
 # ==============================
@@ -439,3 +503,4 @@ with tab2:
             st.download_button("📥 Download CSV", csv, f"scanner_results_{base_year}.csv", "text/csv")
         else:
             st.warning("No stocks matched your condition.")
+
