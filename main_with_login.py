@@ -90,8 +90,35 @@ st.markdown(
 #     except Exception as e:
 #         st.error(f"Error generating Fyers login URL: {e}")
 
+# # -------------------------------
+# # Step 1: Generate Auth URL (Modified for Streamlit Cloud)
+# # -------------------------------
+# if st.button("➡ Open Fyers Login Page"):
+#     try:
+#         session = fyersModel.SessionModel(
+#             client_id=client_id,
+#             secret_key=secret_key,
+#             redirect_uri=redirect_uri,
+#             response_type=response_type
+#         )
+#         response = session.generate_authcode()
+#         st.session_state.auth_url = response
+
+#         # ✅ Streamlit Cloud safe redirect
+#         st.markdown(
+#             f"""
+#             <meta http-equiv="refresh" content="0; url={response}" />
+#             """,
+#             unsafe_allow_html=True
+#         )
+#         st.info("Redirecting to Fyers login page... If not redirected, click below:")
+#         st.markdown(f"[👉 Open Fyers Login Page]({response})", unsafe_allow_html=True)
+
+#     except Exception as e:
+#         st.error(f"Error generating Fyers login URL: {e}")
+
 # -------------------------------
-# Step 1: Generate Auth URL (Modified for Streamlit Cloud)
+# Step 1: Generate Auth URL (Open in New Tab)
 # -------------------------------
 if st.button("➡ Open Fyers Login Page"):
     try:
@@ -104,15 +131,26 @@ if st.button("➡ Open Fyers Login Page"):
         response = session.generate_authcode()
         st.session_state.auth_url = response
 
-        # ✅ Streamlit Cloud safe redirect
+        # ✅ Open in new browser tab (instead of redirecting same page)
         st.markdown(
-            f"""
-            <meta http-equiv="refresh" content="0; url={response}" />
-            """,
+            f'''
+            <a href="{response}" target="_blank" style="text-decoration:none;">
+                <button style="
+                    background-color:#4CAF50;
+                    color:white;
+                    padding:10px 20px;
+                    border:none;
+                    border-radius:5px;
+                    cursor:pointer;">
+                    👉 Open Fyers Login Page
+                </button>
+            </a>
+            ''',
             unsafe_allow_html=True
         )
-        st.info("Redirecting to Fyers login page... If not redirected, click below:")
-        st.markdown(f"[👉 Open Fyers Login Page]({response})", unsafe_allow_html=True)
+
+        st.info("Fyers login page will open in a new tab. Use the TOTP shown in the sidebar to log in.")
+        st.markdown(f"Or manually open: [🔗 {response}]({response})", unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error generating Fyers login URL: {e}")
@@ -205,4 +243,5 @@ else:
 # ==============================================
 # END OF LOGIN + DASHBOARD COMBINATION
 # ==============================================
+
 
