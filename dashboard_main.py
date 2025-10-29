@@ -495,12 +495,39 @@ with tab2:
                     results.append(res)
                 progress.progress((i + 1) / total)
 
+        # if results:
+        #     df_results = pd.DataFrame(results)
+        #     st.success(f"✅ Found {len(df_results)} stocks matching '{condition}'")
+        #     st.dataframe(df_results, use_container_width=True)
+        #     csv = df_results.to_csv(index=False).encode('utf-8')
+        #     st.download_button("📥 Download CSV", csv, f"scanner_results_{base_year}.csv", "text/csv")
+        # else:
+        #     st.warning("No stocks matched your condition.")
+
         if results:
             df_results = pd.DataFrame(results)
+        
+            # ✅ Reorder columns as per your desired format
+            desired_order = [
+                "Symbol", "FY", "%", "CMP",
+                "L6", "L5", "L4", "L3", "L2", "L1",
+                "Average", "P1", "P2", "P3", "P4", "P5", "P6"
+            ]
+            df_results = df_results[[c for c in desired_order if c in df_results.columns]]
+        
             st.success(f"✅ Found {len(df_results)} stocks matching '{condition}'")
             st.dataframe(df_results, use_container_width=True)
+        
+            # CSV download
             csv = df_results.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download CSV", csv, f"scanner_results_{base_year}.csv", "text/csv")
+            st.download_button(
+                "📥 Download CSV",
+                csv,
+                f"scanner_results_{base_year}.csv",
+                "text/csv"
+            )
         else:
             st.warning("No stocks matched your condition.")
+
+
 
