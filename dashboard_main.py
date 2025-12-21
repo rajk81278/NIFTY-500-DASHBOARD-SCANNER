@@ -1,3 +1,6 @@
+# # streamlit run dashboard_main.py
+
+
 # streamlit run dashboard_main.py
 
 
@@ -11,6 +14,10 @@ import time
 import requests
 from io import StringIO
 import concurrent.futures
+
+import warnings
+warnings.filterwarnings("ignore", message=".*missing ScriptRunContext!.*")
+
 
 # ==============================
 # Load Nifty 500 Symbols
@@ -168,71 +175,6 @@ def get_cmp(symbol):
 
 
 
-# def plot_chart(df, sr_levels, title, show_volume=True):
-#     fig = go.Figure()
-
-#     # Candlestick
-#     fig.add_trace(go.Candlestick(
-#         x=df.index, open=df["open"], high=df["high"],
-#         low=df["low"], close=df["close"], name="Price"
-#     ))
-
-#     # Volume bars
-#     if show_volume:
-#         fig.add_trace(go.Bar(
-#             x=df.index, y=df["volume"], name="Volume", yaxis="y2", opacity=0.3
-#         ))
-
-#     # Support levels (L1 highest, L6 lowest)
-#     for i in range(1, 7):
-#         keyL = f"L{i}"
-#         if keyL in sr_levels:
-#             fig.add_hline(y=sr_levels[keyL], line_dash="dot", line_color="green",
-#                           annotation_text=f"{keyL}: {sr_levels[keyL]}",
-#                           annotation_position="top left")
-
-#     # Resistance levels (P1 highest, P6 lowest)
-#     for i in range(1, 7):
-#         keyP = f"P{i}"
-#         if keyP in sr_levels:
-#             fig.add_hline(y=sr_levels[keyP], line_dash="dot", line_color="red",
-#                           annotation_text=f"{keyP}: {sr_levels[keyP]}",
-#                           annotation_position="bottom left")
-
-#     # Average line
-#     avg_price = df["close"].mean()
-#     fig.add_hline(y=avg_price, line_dash="dash", line_color="yellow",
-#                   annotation_text=f"Avg: {avg_price:.2f}",
-#                   annotation_position="top right")
-
-#     # Layout and style
-#     fig.update_layout(
-#         title=title,
-#         xaxis_title="Date",
-#         yaxis_title="Price",
-#         template="plotly_dark",
-#         height=700,
-#         dragmode="pan",
-#         plot_bgcolor="#0d1117",
-#         paper_bgcolor="#0d1117",
-#         font=dict(color="white"),
-#         hovermode="x unified",
-#         yaxis2=dict(overlaying='y', side='right', showgrid=False,
-#                     title='Volume' if show_volume else None),
-#         updatemenus=[dict(type="buttons", showactive=False,
-#                           buttons=[dict(label="Reset Zoom", method="relayout",
-#                                         args=[{"xaxis.autorange": True, "yaxis.autorange": True}])])]
-#     )
-
-#     # Light gridlines (less distracting)
-#     fig.update_xaxes(showspikes=True, spikemode='across', spikecolor='white',
-#                      spikesnap='cursor', rangeslider=dict(visible=True),
-#                      showgrid=True, gridcolor="rgba(255,255,255,0.05)")
-#     fig.update_yaxes(fixedrange=False, showspikes=True, spikemode='across',
-#                      spikecolor='white', showgrid=True, gridcolor="rgba(255,255,255,0.05)")
-
-#     return fig
-
 def plot_chart(df, sr_levels, title, show_volume=True):
     # Sidebar checkboxes for extra levels
     show_extra_supports = st.sidebar.checkbox("Show Extended Supports (L3–L6)", value=False)
@@ -289,10 +231,35 @@ def plot_chart(df, sr_levels, title, show_volume=True):
                               annotation_position="bottom left")
 
     # Average line
-    avg_price = df["close"].mean()
-    fig.add_hline(y=avg_price, line_dash="dash", line_color="yellow",
-                  annotation_text=f"Avg: {avg_price:.2f}",
-                  annotation_position="top right")
+    # avg_price = df["close"].mean()
+    # fig.add_hline(y=avg_price, line_dash="dash", line_color="yellow",
+    #               annotation_text=f"Avg: {avg_price:.2f}",
+    #               annotation_position="top right")
+
+
+        # Average line — use SR calculator's Average for the selected FY (fallback to close-mean)
+    avg_price = None
+    if isinstance(sr_levels, dict):
+        avg_price = sr_levels.get("Average")
+    # try convert to float if it's a string/None-like
+    try:
+        if avg_price is not None:
+            avg_price = float(avg_price)
+    except Exception:
+        avg_price = None
+
+    # Fallback: if sr_levels doesn't contain Average, use df close mean
+    if avg_price is None or pd.isna(avg_price):
+        avg_price = float(df["close"].mean())
+
+    fig.add_hline(
+        y=avg_price,
+        line_dash="dash",
+        line_color="yellow",
+        annotation_text=f"Base FY Avg: {avg_price:.2f}",
+        annotation_position="top right"
+    )
+
 
     # Layout and style
     fig.update_layout(
@@ -327,8 +294,8 @@ def plot_chart(df, sr_levels, title, show_volume=True):
 # ==============================
 # Streamlit Tabs
 # ==============================
-st.set_page_config(page_title="📊 SR Dashboard + Scanner", layout="wide")
-tab1, tab2 = st.tabs(["📊 Dashboard", "🔍 Scanner"])
+# st.set_page_config(page_title="📊 SR Dashboard + Scanner", layout="wide")
+tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🔍 Scanner", 'SR Backtester'])
 
 # ==========================================================
 # TAB 1 — Dashboard
@@ -515,6 +482,282 @@ with tab2:
         else:
             st.warning("No stocks matched your condition.")
 
+
+# # ==========================================================
+# # TAB 3 — FS/SS Buy Detector (Smart Cached + Incremental Update)
+# # ==========================================================
+# import os
+# import concurrent.futures
+# import datetime as dt
+# import pandas as pd
+# import streamlit as st
+
+# with tab3:
+#     st.title("🟢 FS & SS Buy Detector — Smart Cached + Incremental Update")
+
+#     st.write("""
+#     This version uses a **smart local data cache** for all Nifty 500 stocks.  
+#     It downloads full data only once, then **automatically updates** missing days  
+#     before performing FS/SS detection.  
+#     """)
+
+#     # --- Manual selectors ---
+#     base_year = st.selectbox("📘 Select Base FY (for S/R Levels)",
+#                              ["2020-2021", "2021-2022", "2022-2023", "2023-2024"])
+#     march_year = st.selectbox("📅 Select March Closing Year", [2024, 2025, 2026])
+
+#     nifty500_symbols = get_nifty500_symbols()
+#     DATA_FOLDER = "data_cache"
+#     os.makedirs(DATA_FOLDER, exist_ok=True)
+
+#     # ---------- Cached SR Levels ----------
+#     @st.cache_data(ttl=86400)
+#     def get_sr_for_symbol(symbol_name: str, base_year: str):
+#         fy_start = int(base_year.split("-")[0])
+#         fy_end = int(base_year.split("-")[1])
+#         symbol = f"NSE:{symbol_name}-EQ"
+#         df = fetch_month_data(symbol, f"{fy_start}-04-01", f"{fy_end}-03-31")
+#         print(f"Fetching SR for {symbol_name} for FY {base_year}")
+#         if df.empty:
+#             return None
+#         sr = calculate_sr_levels(df)
+#         return sr
+
+#     # ---------- Smart Data Loader ----------
+#     def fetch_full_and_save(symbol_code, file_path):
+#         try:
+#             df = fetch_5yr_data_monthwise(symbol_code)
+#             if not df.empty:
+#                 df.to_csv(file_path)
+#                 print(f"[{symbol_code}] 💾 Saved new data file ({len(df)} rows)")
+#             else:
+#                 print(f"[{symbol_code}] ❌ No data fetched")
+#             return df
+#         except Exception as e:
+#             print(f"[{symbol_code}] ❌ Fetch failed: {e}")
+#             return pd.DataFrame()
+
+#     @st.cache_data(ttl=0)
+#     def load_or_update_data(symbol_name: str):
+#         """Load cached data for a stock, or fetch/update it if missing or outdated."""
+#         symbol_code = f"NSE:{symbol_name}-EQ"
+#         file_path = os.path.join(DATA_FOLDER, f"{symbol_name}.csv")
+#         today = dt.datetime.now().date()
+#         df = pd.DataFrame()
+
+#         if os.path.exists(file_path):
+#             df = pd.read_csv(file_path, index_col=0, parse_dates=True)
+#             if not df.empty:
+#                 last_date = df.index[-1].date()
+#                 if (today - last_date).days >= 1:
+#                     from_date = (last_date + dt.timedelta(days=1)).strftime("%Y-%m-%d")
+#                     to_date = today.strftime("%Y-%m-%d")
+#                     try:
+#                         new_df = fetch_month_data(symbol_code, from_date, to_date)
+#                         if not new_df.empty:
+#                             df = pd.concat([df, new_df])
+#                             df = df[~df.index.duplicated(keep='last')]
+#                             df.to_csv(file_path)
+#                             print(f"[{symbol_name}] 🔄 Updated data to {to_date}")
+#                     except Exception as e:
+#                         print(f"[{symbol_name}] ⚠️ Update failed: {e}")
+#             else:
+#                 print(f"[{symbol_name}] ⚠️ Cached file empty, fetching full data.")
+#                 df = fetch_full_and_save(symbol_code, file_path)
+#         else:
+#             df = fetch_full_and_save(symbol_code, file_path)
+
+#         return df
+
+#     # ---------- Main Execution ----------
+#     if st.button("🚀 Run Smart FS/SS Detector"):
+#         st.info(f"Scanning Nifty 500 stocks for Base FY {base_year} and March {march_year} closing…")
+#         progress = st.progress(0)
+#         log_placeholder = st.empty()
+
+#         total = len(nifty500_symbols)
+#         results_step2, results_step3, results_base, results_fs, results_ss = [], [], [], [], []
+
+#         # Year boundaries
+#         start_year = int(base_year.split("-")[0])
+#         fy_start = dt.datetime(start_year, 4, 1)
+#         fy_end = dt.datetime(start_year + 1, 3, 31)
+#         mar_start = dt.datetime(march_year, 3, 1)
+#         mar_end = dt.datetime(march_year, 3, 31)
+#         post_mar = dt.datetime(march_year, 3, 31)
+
+#         # ---------- Fetch CMP Data ----------
+#         all_symbols_str = ",".join([f"NSE:{s}-EQ" for s in nifty500_symbols])
+#         cmp_data = fyers.quotes({"symbols": all_symbols_str})
+#         cmp_map = {}
+#         if cmp_data.get("s") == "ok":
+#             for d in cmp_data["d"]:
+#                 sym = d["n"].split(":")[1].split("-")[0]
+#                 cmp_map[sym] = d.get("v", {}).get("lp", None)
+
+#         # ---------- Stock Processor ----------
+#         def process_stock(symbol_name):
+#             try:
+#                 sr = get_sr_for_symbol(symbol_name, base_year)
+#                 if not sr:
+#                     print(f"[{symbol_name}] ❌ SR not available")
+#                     return None
+
+#                 df = load_or_update_data(symbol_name)
+#                 if df.empty:
+#                     print(f"[{symbol_name}] ❌ No data after fetch/update")
+#                     return None
+
+#                 P2, P3, P4 = sr["P2"], sr["P3"], sr["P4"]
+
+#                 # --- March closing check ---
+#                 cmp_price = cmp_map.get(symbol_name)
+#                 print(f"Processing: {symbol_name} and {cmp_price}")
+#                 if march_year == dt.datetime.now().year and cmp_price is not None:
+#                     mar_close = cmp_price
+#                 else:
+#                     mar_df = df[(df.index >= mar_start) & (df.index <= mar_end)]
+#                     if mar_df.empty:
+#                         return None
+#                     mar_close = float(mar_df["close"].iloc[-1])
+
+#                 if not (P2 < mar_close < P3):
+#                     return None
+
+#                 post_df = df[df.index > post_mar]
+#                 if len(post_df) < 30:
+#                     return None
+
+#                 # --- Step 2: Close above P3 without touching ---
+#                 above_p3 = None
+#                 for i in range(len(post_df)):
+#                     row = post_df.iloc[i]
+#                     if row["close"] > P3 and row["low"] > P3:
+#                         results_step2.append({
+#                             "Symbol": symbol_name,
+#                             "Date": row.name.date(),
+#                             "P3": P3, "Close": row["close"]
+#                         })
+#                         above_p3 = i
+#                         break
+#                 if above_p3 is None:
+#                     return None
+
+#                 # --- Step 3: Close below P3 + next 5 bars between ---
+#                 below_p3 = None
+#                 for i in range(above_p3 + 1, len(post_df)):
+#                     row = post_df.iloc[i]
+#                     if row["close"] < P3:
+#                         low_bar = row["low"]
+#                         valid = True
+#                         for j in range(1, 6):
+#                             if i + j >= len(post_df):
+#                                 valid = False
+#                                 break
+#                             sub = post_df.iloc[i + j]
+#                             if not (low_bar < sub["close"] < P3) or sub["low"] <= low_bar:
+#                                 valid = False
+#                                 break
+#                         if valid:
+#                             results_step3.append({
+#                                 "Symbol": symbol_name,
+#                                 "Date": row.name.date(),
+#                                 "Low": low_bar,
+#                                 "P3": P3
+#                             })
+#                             below_p3 = i
+#                             break
+#                 if below_p3 is None:
+#                     return None
+
+#                 # --- Step 4: Base Price ---
+#                 base_price = post_df.iloc[below_p3]["low"]
+#                 base_dt = post_df.index[below_p3]
+#                 results_base.append({
+#                     "Symbol": symbol_name,
+#                     "Base_Price": base_price,
+#                     "Base_Date": base_dt.date(),
+#                     "P3": P3, "P4": P4
+#                 })
+
+#                 # --- Step 5: FS / SS Detection ---
+#                 fs_row, ss_row = None, None
+#                 for k in range(below_p3 + 1, len(post_df)):
+#                     row = post_df.iloc[k]
+#                     if row["low"] <= base_price and row["close"] > base_price:
+#                         fs_row = row
+#                         break
+#                     if row["close"] < base_price and (k + 1) < len(post_df):
+#                         next_row = post_df.iloc[k + 1]
+#                         if next_row["low"] <= row["low"] and next_row["close"] > row["low"]:
+#                             ss_row = next_row
+#                             break
+
+#                 target = round((P3 + P4) / 2, 2)
+#                 if fs_row is not None:
+#                     results_fs.append({
+#                         "Symbol": symbol_name,
+#                         "FS_Date": fs_row.name.date(),
+#                         "Base_Price": base_price,
+#                         "Target": target
+#                     })
+#                 if ss_row is not None:
+#                     results_ss.append({
+#                         "Symbol": symbol_name,
+#                         "SS_Date": ss_row.name.date(),
+#                         "Base_Price": base_price,
+#                         "Target": target
+#                     })
+#             except Exception as e:
+#                 print(f"[{symbol_name}] ⚠️ Error: {e}")
+#                 return None
+
+#         # ---------- Run in Parallel ----------
+#         with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
+#             futures = {executor.submit(process_stock, s): s for s in nifty500_symbols}
+#             for i, future in enumerate(concurrent.futures.as_completed(futures)):
+#                 if i % 10 == 0:
+#                     progress.progress((i + 1) / total)
+
+#         log_placeholder.text("✅ Scan Complete!")
+
+#         # ---------- Show Results ----------
+#         st.subheader("🟡 Step 2 — Above P3 (Without Touching)")
+#         if results_step2:
+#             df2 = pd.DataFrame(results_step2)
+#             st.dataframe(df2, use_container_width=True)
+#             st.download_button("📥 Download Step 2", df2.to_csv(index=False), "Step2.csv", "text/csv")
+
+#         st.subheader("🟢 Step 3 — Below P3 + 5 Bar Filter")
+#         if results_step3:
+#             df3 = pd.DataFrame(results_step3)
+#             st.dataframe(df3, use_container_width=True)
+#             st.download_button("📥 Download Step 3", df3.to_csv(index=False), "Step3.csv", "text/csv")
+
+#         st.subheader("🔵 Base Price Identified")
+#         if results_base:
+#             dfb = pd.DataFrame(results_base)
+#             st.dataframe(dfb, use_container_width=True)
+#             st.download_button("📥 Download Base List", dfb.to_csv(index=False), "BasePrice.csv", "text/csv")
+
+#         st.subheader("🟩 FS Detected Stocks")
+#         if results_fs:
+#             dfs = pd.DataFrame(results_fs)
+#             st.dataframe(dfs, use_container_width=True)
+#             st.download_button("📥 Download FS", dfs.to_csv(index=False), "FS_List.csv", "text/csv")
+
+#         st.subheader("🟥 SS Detected Stocks")
+#         if results_ss:
+#             dss = pd.DataFrame(results_ss)
+#             st.dataframe(dss, use_container_width=True)
+#             st.download_button("📥 Download SS", dss.to_csv(index=False), "SS_List.csv", "text/csv")
+
+#         if results_fs or results_ss:
+#             combined = pd.concat([pd.DataFrame(results_fs), pd.DataFrame(results_ss)], axis=0, ignore_index=True)
+#             st.download_button("📥 Download Combined FS + SS",
+#                                combined.to_csv(index=False),
+#                                "FS_SS_Combined.csv",
+#                                "text/csv")
 
 with tab3:
 
@@ -1524,7 +1767,3 @@ with tab3:
                         f"Win Rate: {(trades_df['pnl_pct'] > 0).mean() * 100:.2f}% | "
                         f"Avg PnL%: {trades_df['pnl_pct'].mean():.2f}%"
                     )
-
-
-
-
