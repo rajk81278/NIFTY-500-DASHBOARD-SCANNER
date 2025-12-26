@@ -295,7 +295,11 @@ def plot_chart(df, sr_levels, title, show_volume=True):
 # Streamlit Tabs
 # ==============================
 # st.set_page_config(page_title="📊 SR Dashboard + Scanner", layout="wide")
-tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🔍 Scanner", 'SR Backtester'])
+# tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🔍 Scanner", 'SR Backtester'])
+
+tab1, tab2, tab3, tab4 = st.tabs(["Dashboard", "Scanner", "SR Backtester", "FY Levels Export"])
+
+st.set_page_config(page_title="SR Dashboard", layout="wide")
 
 # ==========================================================
 # TAB 1 — Dashboard
@@ -1767,3 +1771,114 @@ with tab3:
                         f"Win Rate: {(trades_df['pnl_pct'] > 0).mean() * 100:.2f}% | "
                         f"Avg PnL%: {trades_df['pnl_pct'].mean():.2f}%"
                     )
+
+
+
+with tab4:
+    st.title("Financial Year SR Levels Export (All Nifty 500)")
+
+    stock_symbols = get_nifty500_symbols()
+    yahoo_symbols = [s + ".NS" for s in stock_symbols]
+
+    selected_fy = st.selectbox(
+        "Select Financial Year:",
+        [f"{fy}-{fy+1}" for fy in range(dt.datetime.now().year - 6, dt.datetime.now().year)],
+        index=5
+    )
+
+    fy_start = f"{selected_fy.split('-')[0]}-04-01"
+    fy_end   = f"{selected_fy.split('-')[1]}-03-31"
+
+    if st.button("Fetch & Show All Levels"):
+        import yfinance as yf
+        from io import BytesIO
+
+        progress = st.progress(0)
+        results = []
+        no_data = []
+        total = len(yahoo_symbols)
+
+        for i, symbol in enumerate(yahoo_symbols):
+            try:
+                df = yf.download(symbol, start=fy_start, end=fy_end, progress=False)
+
+                # FIXED MultiIndex flattening
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.droplevel(1)
+
+                # Minimum data requirement
+                if df.empty or len(df) < 30:
+                    no_data.append(symbol.replace(".NS",""))
+                    print("NO DATA:", symbol)
+                    continue
+
+                # Rename for your SR function
+                df = df.rename(columns={
+                    "Open": "open",
+                    "High": "high",
+                    "Low": "low",
+                    "Close": "close",
+                    "Volume": "volume"
+                })
+
+                # Calculate SR using your shared function
+                sr = calculate_sr_levels(df)
+
+                row = {
+                    "FY"        : selected_fy,
+                    "Symbol"    : symbol.replace(".NS",""),
+                    "CMP"       : round(df["close"].iloc[-1], 2),
+                    "Average"   : sr.get("Average"),
+                    "High (Ref)": sr.get("High (Ref)"),  # Now placed next to Average
+                    "% Change"  : sr.get("% Change"),
+                    **{f"L{i}": sr.get(f"L{i}") for i in range(1,7)},
+                    **{f"P{i}": sr.get(f"P{i}") for i in range(1,7)}
+                }
+
+                results.append(row)
+
+            except Exception as e:
+                print("FAIL:", symbol, e)
+                no_data.append(symbol.replace(".NS",""))
+
+            progress.progress((i + 1) / total)
+
+        # Show final table + download option
+        if results:
+            df_results = pd.DataFrame(results)
+
+            # FIXED ORDER → High (Ref) after Average
+            final_order = [
+                "FY","Symbol","L6","L5","L4","L3","L2","L1",
+                "Average","High (Ref)","P1","P2","P3","P4","P5","P6",
+                "% Change","CMP"
+            ]
+
+            df_results = df_results[[c for c in final_order if c in df_results.columns]]
+
+            st.success(f"Processed {len(results)} symbols | Skipped {len(no_data)} (insufficient data)")
+            st.dataframe(df_results, use_container_width=True)
+
+            # Create Excel in memory
+            buffer = BytesIO()
+            with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                df_results.to_excel(writer, index=False, sheet_name="SR Levels")
+            buffer.seek(0)
+
+            # Download Excel button
+            st.download_button(
+                label="Download Excel",
+                data=buffer,
+                file_name="FY_Nifty500_SR_Levels.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+        else:
+            st.warning("No valid symbols found for selected FY.")
+
+
+
+
+
+
+
