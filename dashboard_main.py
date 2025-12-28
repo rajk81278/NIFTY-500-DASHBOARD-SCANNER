@@ -20,6 +20,12 @@ from io import BytesIO
 import warnings
 warnings.filterwarnings("ignore", message=".*missing ScriptRunContext!.*")
 
+import os
+
+# Force-create log directory at runtime (works in cloud + local)
+os.makedirs("log", exist_ok=True)
+
+
 
 # ==============================
 # Load Nifty 500 Symbols
@@ -1701,6 +1707,7 @@ with tab4:
 
         else:
             st.warning("No valid symbols found for selected FY.")
+
 
 
 
