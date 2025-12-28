@@ -14,6 +14,8 @@ import time
 import requests
 from io import StringIO
 import concurrent.futures
+import yfinance as yf
+from io import BytesIO
 
 import warnings
 warnings.filterwarnings("ignore", message=".*missing ScriptRunContext!.*")
@@ -1615,8 +1617,7 @@ with tab4:
     fy_end   = f"{selected_fy.split('-')[1]}-03-31"
 
     if st.button("Fetch & Show All Levels"):
-        import yfinance as yf
-        from io import BytesIO
+
 
         progress = st.progress(0)
         results = []
@@ -1700,6 +1701,7 @@ with tab4:
 
         else:
             st.warning("No valid symbols found for selected FY.")
+
 
 
 
