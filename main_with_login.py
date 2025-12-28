@@ -88,7 +88,9 @@ if st.button("✅ Check Access Token"):
         if saved_token and is_token_valid(saved_token):
             st.session_state.access_token = saved_token
             st.success("🎉 Access token is valid — Fyers connected successfully!")
-            st.experimental_rerun()
+            # st.experimental_rerun()
+            st.rerun()
+
         else:
             st.warning("⚠️ Token invalid or expired — please log in again.")
     else:
@@ -107,7 +109,9 @@ if st.session_state.access_token:
         else:
             st.error("❌ Token expired — please log in again.")
             st.session_state.access_token = None
-            st.experimental_rerun()
+            # st.experimental_rerun()
+            st.rerun()
+
 
     try:
         fyers = fyersModel.FyersModel(
@@ -250,5 +254,6 @@ if st.session_state.auth_code and st.session_state.access_token is None:
 # -------------------------------
 if st.checkbox("Show Access Token (debug)"):
     st.code(st.session_state.access_token or "No token yet")
+
 
 
