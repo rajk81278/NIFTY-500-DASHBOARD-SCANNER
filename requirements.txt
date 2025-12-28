@@ -71,4 +71,6 @@ websocket-client==1.6.1
 websockets==15.0.1
 wrapt==2.0.0
 yarl==1.22.0
-yfinance==1.0
+yfinance==0.2.33
+
+
