@@ -373,21 +373,148 @@ with tab1:
         st.info("ℹ️ Please select a stock and click **📥 Fetch 5-Year Data** to start.")
 
 
+# # ==========================================================
+# # TAB 2 — Nifty 500 Scanner
+# # ==========================================================
+# with tab2:
+#     st.title("⚡ Fast Nifty 500 Support/Resistance Scanner")
+
+
+
+
+#     nifty500_symbols = get_nifty500_symbols()
+
+#     base_year = st.selectbox(
+#         "Select Financial Year for SR Levels",
+#         [f"{fy}-{fy+1}" for fy in range(dt.datetime.now().year - 4, dt.datetime.now().year + 1)],
+#         index=4
+#     )
+
+#     # ✅ Only labels updated; logic same
+#     condition = st.selectbox(
+#         "Select Condition:",
+#         [
+#             "Above P1 but below P2",
+#             "Above P2 but below P3",
+#             "Above Average but below P1",
+#             "Below L1 but above L2",
+#             "Below L2 but above L3"
+#         ]
+#     )
+
+#     @st.cache_data(ttl=86400)
+#     def get_sr_for_symbol(symbol_name, base_year):
+#         fy_start = int(base_year.split("-")[0])
+#         fy_end = int(base_year.split("-")[1])
+#         symbol = f"NSE:{symbol_name}-EQ"
+#         df = fetch_month_data(symbol, f"{fy_start}-04-01", f"{fy_end}-03-31")
+#         if df.empty:
+#             return None
+#         sr = calculate_sr_levels(df)
+#         return sr
+
+#     def check_condition(symbol_name, sr, cmp_price):
+#         if not sr or cmp_price is None:
+#             return False
+
+#         if condition == "Above P1 but below P2":
+#             return sr["P1"] < cmp_price < sr["P2"]
+#         elif condition == "Above P2 but below P3":
+#             return sr["P2"] < cmp_price < sr["P3"]
+#         elif condition == "Above Average but below P1":
+#             return sr["Average"] < cmp_price < sr["P1"]
+#         elif condition == "Below L1 but above L2":
+#             return sr["L1"] > cmp_price > sr["L2"]
+#         elif condition == "Below L2 but above L3":
+#             return sr["L2"] > cmp_price > sr["L3"]
+#         return False
+
+#     if st.button("🚀 Run Fast Scanner"):
+#         st.info("Running optimized multi-threaded scanner... Please wait 1–3 minutes.")
+#         progress = st.progress(0)
+#         results = []
+#         total = len(nifty500_symbols)
+
+#         all_symbols_str = ",".join([f"NSE:{s}-EQ" for s in nifty500_symbols])
+#         cmp_data = fyers.quotes({"symbols": all_symbols_str})
+#         cmp_map = {}
+#         if cmp_data.get("s") == "ok":
+#             for d in cmp_data["d"]:
+#                 sym = d["n"].split(":")[1].split("-")[0]
+#                 cmp_map[sym] = d.get("v", {}).get("lp", None)
+
+#         def process_stock(symbol_name):
+#             sr = get_sr_for_symbol(symbol_name, base_year)
+#             cmp_price = cmp_map.get(symbol_name)
+#             if sr and cmp_price is not None and check_condition(symbol_name, sr, cmp_price):
+#                 return {
+#                     "Symbol": symbol_name,
+#                     "CMP": round(cmp_price, 2),
+#                     "FY": base_year,
+#                     **sr
+#                 }
+#             return None
+
+#         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+#             futures = {executor.submit(process_stock, s): s for s in nifty500_symbols}
+#             for i, future in enumerate(concurrent.futures.as_completed(futures)):
+#                 res = future.result()
+#                 if res:
+#                     results.append(res)
+#                 progress.progress((i + 1) / total)
+
+#         # if results:
+#         #     df_results = pd.DataFrame(results)
+#         #     st.success(f"✅ Found {len(df_results)} stocks matching '{condition}'")
+#         #     st.dataframe(df_results, use_container_width=True)
+#         #     csv = df_results.to_csv(index=False).encode('utf-8')
+#         #     st.download_button("📥 Download CSV", csv, f"scanner_results_{base_year}.csv", "text/csv")
+#         # else:
+#         #     st.warning("No stocks matched your condition.")
+
+#         if results:
+#             df_results = pd.DataFrame(results)
+        
+#             # ✅ Reorder columns as per your desired format
+#             desired_order = [
+#                 "Symbol", "FY", "%", "CMP",
+#                 "L6", "L5", "L4", "L3", "L2", "L1",
+#                 "Average", "P1", "P2", "P3", "P4", "P5", "P6"
+#             ]
+#             df_results = df_results[[c for c in desired_order if c in df_results.columns]]
+        
+#             st.success(f"✅ Found {len(df_results)} stocks matching '{condition}'")
+#             st.dataframe(df_results, use_container_width=True)
+        
+#             # CSV download
+#             csv = df_results.to_csv(index=False).encode('utf-8')
+#             st.download_button(
+#                 "📥 Download CSV",
+#                 csv,
+#                 f"scanner_results_{base_year}.csv",
+#                 "text/csv"
+#             )
+#         else:
+#             st.warning("No stocks matched your condition.")
+
 # ==========================================================
-# TAB 2 — Nifty 500 Scanner
+# TAB 2 — Nifty 500 Scanner (Updated)
 # ==========================================================
 with tab2:
-    st.title("⚡ Fast Nifty 500 Support/Resistance Scanner")
+    st.title("Fast Nifty 500 Support/Resistance Scanner")
 
-    nifty500_symbols = get_nifty500_symbols()
+    stock_symbols = get_nifty500_symbols()
+    total = len(stock_symbols)
 
-    base_year = st.selectbox(
-        "Select Financial Year for SR Levels",
-        [f"{fy}-{fy+1}" for fy in range(dt.datetime.now().year - 4, dt.datetime.now().year + 1)],
-        index=4
+    selected_fy = st.selectbox(
+        "Select Financial Year:",
+        [f"{fy}-{fy+1}" for fy in range(dt.datetime.now().year - 6, dt.datetime.now().year)],
+        index=5
     )
 
-    # ✅ Only labels updated; logic same
+    fy_start = f"{selected_fy.split('-')[0]}-04-01"
+    fy_end   = f"{selected_fy.split('-')[1]}-03-31"
+
     condition = st.selectbox(
         "Select Condition:",
         [
@@ -399,100 +526,76 @@ with tab2:
         ]
     )
 
-    @st.cache_data(ttl=86400)
-    def get_sr_for_symbol(symbol_name, base_year):
-        fy_start = int(base_year.split("-")[0])
-        fy_end = int(base_year.split("-")[1])
-        symbol = f"NSE:{symbol_name}-EQ"
-        df = fetch_month_data(symbol, f"{fy_start}-04-01", f"{fy_end}-03-31")
-        if df.empty:
-            return None
-        sr = calculate_sr_levels(df)
-        return sr
+    evaluated_count = 0
+    skipped_count = 0
+    results = []
+    progress = st.progress(0)
 
-    def check_condition(symbol_name, sr, cmp_price):
-        if not sr or cmp_price is None:
-            return False
+    if st.button("Run Scanner"):
+        for i, symbol in enumerate(stock_symbols):
+            evaluated_count += 1
+            sym = f"NSE:{symbol}-EQ"
 
-        if condition == "Above P1 but below P2":
-            return sr["P1"] < cmp_price < sr["P2"]
-        elif condition == "Above P2 but below P3":
-            return sr["P2"] < cmp_price < sr["P3"]
-        elif condition == "Above Average but below P1":
-            return sr["Average"] < cmp_price < sr["P1"]
-        elif condition == "Below L1 but above L2":
-            return sr["L1"] > cmp_price > sr["L2"]
-        elif condition == "Below L2 but above L3":
-            return sr["L2"] > cmp_price > sr["L3"]
-        return False
+            df = fetch_month_data(sym, fy_start, fy_end)
+            cmp_price = get_cmp(sym)
 
-    if st.button("🚀 Run Fast Scanner"):
-        st.info("Running optimized multi-threaded scanner... Please wait 1–3 minutes.")
-        progress = st.progress(0)
-        results = []
-        total = len(nifty500_symbols)
-
-        all_symbols_str = ",".join([f"NSE:{s}-EQ" for s in nifty500_symbols])
-        cmp_data = fyers.quotes({"symbols": all_symbols_str})
-        cmp_map = {}
-        if cmp_data.get("s") == "ok":
-            for d in cmp_data["d"]:
-                sym = d["n"].split(":")[1].split("-")[0]
-                cmp_map[sym] = d.get("v", {}).get("lp", None)
-
-        def process_stock(symbol_name):
-            sr = get_sr_for_symbol(symbol_name, base_year)
-            cmp_price = cmp_map.get(symbol_name)
-            if sr and cmp_price is not None and check_condition(symbol_name, sr, cmp_price):
-                return {
-                    "Symbol": symbol_name,
-                    "CMP": round(cmp_price, 2),
-                    "FY": base_year,
-                    **sr
-                }
-            return None
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-            futures = {executor.submit(process_stock, s): s for s in nifty500_symbols}
-            for i, future in enumerate(concurrent.futures.as_completed(futures)):
-                res = future.result()
-                if res:
-                    results.append(res)
+            if df.empty or cmp_price is None:
+                skipped_count += 1
                 progress.progress((i + 1) / total)
+                continue
 
-        # if results:
-        #     df_results = pd.DataFrame(results)
-        #     st.success(f"✅ Found {len(df_results)} stocks matching '{condition}'")
-        #     st.dataframe(df_results, use_container_width=True)
-        #     csv = df_results.to_csv(index=False).encode('utf-8')
-        #     st.download_button("📥 Download CSV", csv, f"scanner_results_{base_year}.csv", "text/csv")
-        # else:
-        #     st.warning("No stocks matched your condition.")
+            sr = calculate_sr_levels(df)
+
+            match = False
+            if condition == "Above P1 but below P2":
+                match = sr["P1"] < cmp_price < sr["P2"]
+            elif condition == "Above P2 but below P3":
+                match = sr["P2"] < cmp_price < sr["P3"]
+            elif condition == "Above Average but below P1":
+                match = sr["Average"] < cmp_price < sr["P1"]
+            elif condition == "Below L1 but above L2":
+                match = sr["L1"] > cmp_price > sr["L2"]
+            elif condition == "Below L2 but above L3":
+                match = sr["L2"] > cmp_price > sr["L3"]
+
+            if match:
+                results.append({
+                    "Symbol": symbol,
+                    "FY": selected_fy,
+                    "CMP": round(cmp_price, 2),
+                    **sr
+                })
+
+            progress.progress((i + 1) / total)
+
+        # ===== Universe Audit Summary =====
+        st.markdown("---")
+        st.success(f"Total Symbols Attempted: {total}")
+        st.info(f"Total Symbols Evaluated for Condition: {evaluated_count}")
+        st.warning(f"Total Symbols Skipped (No history or CMP missing): {skipped_count}")
+        st.success(f"Total Symbols Matched Condition: {len(results)}")
 
         if results:
             df_results = pd.DataFrame(results)
-        
-            # ✅ Reorder columns as per your desired format
-            desired_order = [
-                "Symbol", "FY", "%", "CMP",
-                "L6", "L5", "L4", "L3", "L2", "L1",
-                "Average", "P1", "P2", "P3", "P4", "P5", "P6"
+            final_order = [
+                "Symbol","FY","L6","L5","L4","L3","L2","L1",
+                "Average","High (Ref)","P1","P2","P3","P4","P5","P6",
+                "% Change","CMP"
             ]
-            df_results = df_results[[c for c in desired_order if c in df_results.columns]]
-        
-            st.success(f"✅ Found {len(df_results)} stocks matching '{condition}'")
+            df_results = df_results[[c for c in final_order if c in df_results.columns]]
+
             st.dataframe(df_results, use_container_width=True)
-        
-            # CSV download
-            csv = df_results.to_csv(index=False).encode('utf-8')
+
+            csv = df_results.to_csv(index=False).encode("utf-8")
             st.download_button(
-                "📥 Download CSV",
-                csv,
-                f"scanner_results_{base_year}.csv",
-                "text/csv"
+                "Download CSV",
+                data=csv,
+                file_name=f"scanner_results_{selected_fy}.csv",
+                mime="text/csv"
             )
         else:
-            st.warning("No stocks matched your condition.")
+            st.error("No symbols matched the selected condition.")
+
 
 
 with tab3:
@@ -1711,3 +1814,4 @@ with tab4:
 
         else:
             st.warning("No valid symbols found for selected FY. Check logs for skipped symbols.")
+
