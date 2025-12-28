@@ -1608,68 +1608,63 @@ with tab3:
 #         else:
 #             st.warning("No valid symbols found for selected FY.")
 
-
 with tab4:
     st.title("Financial Year SR Levels Export (All Nifty 500)")
 
     import os
-    os.makedirs("log", exist_ok=True)  # ensure log folder exists
+    os.makedirs("log", exist_ok=True)
 
-    # Guard import for cloud
-    try:
-        import yfinance as yf
-    except ModuleNotFoundError:
-        st.error("Dependency missing: yfinance. Fix requirements.txt and redeploy.")
-        st.stop()
+    stock_symbols = get_nifty500_symbols()
+    total = len(stock_symbols)
+    progress = st.progress(0)
 
-    stock_symbols = get_nifty500_symbols()  # Nifty 500 list
-    yahoo_symbols = [s + ".NS" for s in stock_symbols]
+    results = []
+    no_data = []
 
-    fy_years = [f"{fy}-{fy+1}" for fy in range(dt.datetime.now().year - 6, dt.datetime.now().year)]
-    selected_fy = st.selectbox("Select Financial Year:", fy_years, index=5)
+    fy_options = [f"{fy}-{fy+1}" for fy in range(dt.datetime.now().year - 6, dt.datetime.now().year)]
+    selected_fy = st.selectbox("Select Financial Year:", fy_options, index=5)
 
     fy_start = f"{selected_fy.split('-')[0]}-04-01"
     fy_end   = f"{selected_fy.split('-')[1]}-03-31"
 
     if st.button("Fetch & Show All Levels"):
-        progress = st.progress(0)
-        results = []
-        no_data = []
-        total = len(yahoo_symbols)
-
-        for i, symbol in enumerate(yahoo_symbols):
+        for i, symbol in enumerate(stock_symbols):
             try:
-                df = yf.download(symbol, start=fy_start, end=fy_end, progress=False)
+                sym = f"NSE:{symbol}-EQ"
 
-                # Flatten MultiIndex columns safely
-                if isinstance(df.columns, pd.MultiIndex):
-                    df.columns = df.columns.droplevel(1)
+                # Fetch 1-year history from Fyers
+                df = fetch_month_data(sym, fy_start, fy_end)
 
-                # If still empty → log and skip
-                if df.empty or len(df) < 30:
-                    sym_clean = symbol.replace(".NS", "")
-                    print("NO DATA or insufficient:", sym_clean)
-                    no_data.append(sym_clean)
+                # Skip if no data returned
+                if df.empty or len(df) < 5:
+                    print("Skipping (No history):", symbol)
+                    no_data.append(symbol)
                     progress.progress((i + 1) / total)
                     continue
 
-                # Normalize column names for SR engine
-                df = df.rename(columns={
-                    "Open": "open",
-                    "High": "high",
-                    "Low": "low",
-                    "Close": "close",
-                    "Volume": "volume"
-                })
+                # Fetch CMP from Fyers
+                cmp_price = None
+                try:
+                    q = fyers.quotes({"symbols": sym})
+                    if q.get("s") == "ok" and q.get("d"):
+                        cmp_price = float(q["d"][0]["v"]["lp"])
+                except Exception as qe:
+                    print("Quote fetch failed:", symbol, qe)
 
-                # Compute SR levels
+                if cmp_price is None:
+                    print("Skipping (No CMP):", symbol)
+                    no_data.append(symbol)
+                    progress.progress((i + 1) / total)
+                    continue
+
+                # Compute SR levels from FY data
                 sr = calculate_sr_levels(df)
 
-                # Build result row
+                # Append result row
                 row = {
                     "FY"        : selected_fy,
-                    "Symbol"    : symbol.replace(".NS",""),
-                    "CMP"       : round(df["close"].iloc[-1], 2),
+                    "Symbol"    : symbol,
+                    "CMP"       : round(cmp_price, 2),
                     "Average"   : sr.get("Average"),
                     "High (Ref)": sr.get("High (Ref)"),
                     "% Change"  : sr.get("% Change"),
@@ -1680,17 +1675,16 @@ with tab4:
                 results.append(row)
 
             except Exception as e:
-                sym_clean = symbol.replace(".NS","")
-                print("FAIL:", sym_clean, e)
-                no_data.append(sym_clean)
+                print("FAIL:", symbol, e)
+                no_data.append(symbol)
 
             progress.progress((i + 1) / total)
 
-        # Show or export results
+        # Display + Export
         if results:
             df_results = pd.DataFrame(results)
 
-            # Reorder columns properly
+            # Correct column order
             final_order = [
                 "FY","Symbol","L6","L5","L4","L3","L2","L1",
                 "Average","High (Ref)","P1","P2","P3","P4","P5","P6",
@@ -1698,10 +1692,10 @@ with tab4:
             ]
             df_results = df_results[[c for c in final_order if c in df_results.columns]]
 
-            st.success(f"Processed {len(results)} symbols | Skipped {len(no_data)} (insufficient data)")
+            st.success(f"Processed {len(df_results)} symbols | Skipped {len(no_data)} (No data/CMP)")
             st.dataframe(df_results, use_container_width=True)
 
-            # Excel download
+            # Excel in-memory download
             from io import BytesIO
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -1714,13 +1708,6 @@ with tab4:
                 file_name=f"SR_Levels_{selected_fy}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
         else:
             st.warning("No valid symbols found for selected FY. Check logs for skipped symbols.")
-
-
-
-
-
-
-
-
