@@ -296,10 +296,10 @@ def plot_chart(df, sr_levels, title, show_volume=True):
 # ==============================
 # st.set_page_config(page_title="📊 SR Dashboard + Scanner", layout="wide")
 # tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🔍 Scanner", 'SR Backtester'])
-
 tab1, tab2, tab3, tab4 = st.tabs(["Dashboard", "Scanner", "SR Backtester", "FY Levels Export"])
 
 st.set_page_config(page_title="SR Dashboard", layout="wide")
+
 
 # ==========================================================
 # TAB 1 — Dashboard
@@ -486,282 +486,6 @@ with tab2:
         else:
             st.warning("No stocks matched your condition.")
 
-
-# # ==========================================================
-# # TAB 3 — FS/SS Buy Detector (Smart Cached + Incremental Update)
-# # ==========================================================
-# import os
-# import concurrent.futures
-# import datetime as dt
-# import pandas as pd
-# import streamlit as st
-
-# with tab3:
-#     st.title("🟢 FS & SS Buy Detector — Smart Cached + Incremental Update")
-
-#     st.write("""
-#     This version uses a **smart local data cache** for all Nifty 500 stocks.  
-#     It downloads full data only once, then **automatically updates** missing days  
-#     before performing FS/SS detection.  
-#     """)
-
-#     # --- Manual selectors ---
-#     base_year = st.selectbox("📘 Select Base FY (for S/R Levels)",
-#                              ["2020-2021", "2021-2022", "2022-2023", "2023-2024"])
-#     march_year = st.selectbox("📅 Select March Closing Year", [2024, 2025, 2026])
-
-#     nifty500_symbols = get_nifty500_symbols()
-#     DATA_FOLDER = "data_cache"
-#     os.makedirs(DATA_FOLDER, exist_ok=True)
-
-#     # ---------- Cached SR Levels ----------
-#     @st.cache_data(ttl=86400)
-#     def get_sr_for_symbol(symbol_name: str, base_year: str):
-#         fy_start = int(base_year.split("-")[0])
-#         fy_end = int(base_year.split("-")[1])
-#         symbol = f"NSE:{symbol_name}-EQ"
-#         df = fetch_month_data(symbol, f"{fy_start}-04-01", f"{fy_end}-03-31")
-#         print(f"Fetching SR for {symbol_name} for FY {base_year}")
-#         if df.empty:
-#             return None
-#         sr = calculate_sr_levels(df)
-#         return sr
-
-#     # ---------- Smart Data Loader ----------
-#     def fetch_full_and_save(symbol_code, file_path):
-#         try:
-#             df = fetch_5yr_data_monthwise(symbol_code)
-#             if not df.empty:
-#                 df.to_csv(file_path)
-#                 print(f"[{symbol_code}] 💾 Saved new data file ({len(df)} rows)")
-#             else:
-#                 print(f"[{symbol_code}] ❌ No data fetched")
-#             return df
-#         except Exception as e:
-#             print(f"[{symbol_code}] ❌ Fetch failed: {e}")
-#             return pd.DataFrame()
-
-#     @st.cache_data(ttl=0)
-#     def load_or_update_data(symbol_name: str):
-#         """Load cached data for a stock, or fetch/update it if missing or outdated."""
-#         symbol_code = f"NSE:{symbol_name}-EQ"
-#         file_path = os.path.join(DATA_FOLDER, f"{symbol_name}.csv")
-#         today = dt.datetime.now().date()
-#         df = pd.DataFrame()
-
-#         if os.path.exists(file_path):
-#             df = pd.read_csv(file_path, index_col=0, parse_dates=True)
-#             if not df.empty:
-#                 last_date = df.index[-1].date()
-#                 if (today - last_date).days >= 1:
-#                     from_date = (last_date + dt.timedelta(days=1)).strftime("%Y-%m-%d")
-#                     to_date = today.strftime("%Y-%m-%d")
-#                     try:
-#                         new_df = fetch_month_data(symbol_code, from_date, to_date)
-#                         if not new_df.empty:
-#                             df = pd.concat([df, new_df])
-#                             df = df[~df.index.duplicated(keep='last')]
-#                             df.to_csv(file_path)
-#                             print(f"[{symbol_name}] 🔄 Updated data to {to_date}")
-#                     except Exception as e:
-#                         print(f"[{symbol_name}] ⚠️ Update failed: {e}")
-#             else:
-#                 print(f"[{symbol_name}] ⚠️ Cached file empty, fetching full data.")
-#                 df = fetch_full_and_save(symbol_code, file_path)
-#         else:
-#             df = fetch_full_and_save(symbol_code, file_path)
-
-#         return df
-
-#     # ---------- Main Execution ----------
-#     if st.button("🚀 Run Smart FS/SS Detector"):
-#         st.info(f"Scanning Nifty 500 stocks for Base FY {base_year} and March {march_year} closing…")
-#         progress = st.progress(0)
-#         log_placeholder = st.empty()
-
-#         total = len(nifty500_symbols)
-#         results_step2, results_step3, results_base, results_fs, results_ss = [], [], [], [], []
-
-#         # Year boundaries
-#         start_year = int(base_year.split("-")[0])
-#         fy_start = dt.datetime(start_year, 4, 1)
-#         fy_end = dt.datetime(start_year + 1, 3, 31)
-#         mar_start = dt.datetime(march_year, 3, 1)
-#         mar_end = dt.datetime(march_year, 3, 31)
-#         post_mar = dt.datetime(march_year, 3, 31)
-
-#         # ---------- Fetch CMP Data ----------
-#         all_symbols_str = ",".join([f"NSE:{s}-EQ" for s in nifty500_symbols])
-#         cmp_data = fyers.quotes({"symbols": all_symbols_str})
-#         cmp_map = {}
-#         if cmp_data.get("s") == "ok":
-#             for d in cmp_data["d"]:
-#                 sym = d["n"].split(":")[1].split("-")[0]
-#                 cmp_map[sym] = d.get("v", {}).get("lp", None)
-
-#         # ---------- Stock Processor ----------
-#         def process_stock(symbol_name):
-#             try:
-#                 sr = get_sr_for_symbol(symbol_name, base_year)
-#                 if not sr:
-#                     print(f"[{symbol_name}] ❌ SR not available")
-#                     return None
-
-#                 df = load_or_update_data(symbol_name)
-#                 if df.empty:
-#                     print(f"[{symbol_name}] ❌ No data after fetch/update")
-#                     return None
-
-#                 P2, P3, P4 = sr["P2"], sr["P3"], sr["P4"]
-
-#                 # --- March closing check ---
-#                 cmp_price = cmp_map.get(symbol_name)
-#                 print(f"Processing: {symbol_name} and {cmp_price}")
-#                 if march_year == dt.datetime.now().year and cmp_price is not None:
-#                     mar_close = cmp_price
-#                 else:
-#                     mar_df = df[(df.index >= mar_start) & (df.index <= mar_end)]
-#                     if mar_df.empty:
-#                         return None
-#                     mar_close = float(mar_df["close"].iloc[-1])
-
-#                 if not (P2 < mar_close < P3):
-#                     return None
-
-#                 post_df = df[df.index > post_mar]
-#                 if len(post_df) < 30:
-#                     return None
-
-#                 # --- Step 2: Close above P3 without touching ---
-#                 above_p3 = None
-#                 for i in range(len(post_df)):
-#                     row = post_df.iloc[i]
-#                     if row["close"] > P3 and row["low"] > P3:
-#                         results_step2.append({
-#                             "Symbol": symbol_name,
-#                             "Date": row.name.date(),
-#                             "P3": P3, "Close": row["close"]
-#                         })
-#                         above_p3 = i
-#                         break
-#                 if above_p3 is None:
-#                     return None
-
-#                 # --- Step 3: Close below P3 + next 5 bars between ---
-#                 below_p3 = None
-#                 for i in range(above_p3 + 1, len(post_df)):
-#                     row = post_df.iloc[i]
-#                     if row["close"] < P3:
-#                         low_bar = row["low"]
-#                         valid = True
-#                         for j in range(1, 6):
-#                             if i + j >= len(post_df):
-#                                 valid = False
-#                                 break
-#                             sub = post_df.iloc[i + j]
-#                             if not (low_bar < sub["close"] < P3) or sub["low"] <= low_bar:
-#                                 valid = False
-#                                 break
-#                         if valid:
-#                             results_step3.append({
-#                                 "Symbol": symbol_name,
-#                                 "Date": row.name.date(),
-#                                 "Low": low_bar,
-#                                 "P3": P3
-#                             })
-#                             below_p3 = i
-#                             break
-#                 if below_p3 is None:
-#                     return None
-
-#                 # --- Step 4: Base Price ---
-#                 base_price = post_df.iloc[below_p3]["low"]
-#                 base_dt = post_df.index[below_p3]
-#                 results_base.append({
-#                     "Symbol": symbol_name,
-#                     "Base_Price": base_price,
-#                     "Base_Date": base_dt.date(),
-#                     "P3": P3, "P4": P4
-#                 })
-
-#                 # --- Step 5: FS / SS Detection ---
-#                 fs_row, ss_row = None, None
-#                 for k in range(below_p3 + 1, len(post_df)):
-#                     row = post_df.iloc[k]
-#                     if row["low"] <= base_price and row["close"] > base_price:
-#                         fs_row = row
-#                         break
-#                     if row["close"] < base_price and (k + 1) < len(post_df):
-#                         next_row = post_df.iloc[k + 1]
-#                         if next_row["low"] <= row["low"] and next_row["close"] > row["low"]:
-#                             ss_row = next_row
-#                             break
-
-#                 target = round((P3 + P4) / 2, 2)
-#                 if fs_row is not None:
-#                     results_fs.append({
-#                         "Symbol": symbol_name,
-#                         "FS_Date": fs_row.name.date(),
-#                         "Base_Price": base_price,
-#                         "Target": target
-#                     })
-#                 if ss_row is not None:
-#                     results_ss.append({
-#                         "Symbol": symbol_name,
-#                         "SS_Date": ss_row.name.date(),
-#                         "Base_Price": base_price,
-#                         "Target": target
-#                     })
-#             except Exception as e:
-#                 print(f"[{symbol_name}] ⚠️ Error: {e}")
-#                 return None
-
-#         # ---------- Run in Parallel ----------
-#         with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
-#             futures = {executor.submit(process_stock, s): s for s in nifty500_symbols}
-#             for i, future in enumerate(concurrent.futures.as_completed(futures)):
-#                 if i % 10 == 0:
-#                     progress.progress((i + 1) / total)
-
-#         log_placeholder.text("✅ Scan Complete!")
-
-#         # ---------- Show Results ----------
-#         st.subheader("🟡 Step 2 — Above P3 (Without Touching)")
-#         if results_step2:
-#             df2 = pd.DataFrame(results_step2)
-#             st.dataframe(df2, use_container_width=True)
-#             st.download_button("📥 Download Step 2", df2.to_csv(index=False), "Step2.csv", "text/csv")
-
-#         st.subheader("🟢 Step 3 — Below P3 + 5 Bar Filter")
-#         if results_step3:
-#             df3 = pd.DataFrame(results_step3)
-#             st.dataframe(df3, use_container_width=True)
-#             st.download_button("📥 Download Step 3", df3.to_csv(index=False), "Step3.csv", "text/csv")
-
-#         st.subheader("🔵 Base Price Identified")
-#         if results_base:
-#             dfb = pd.DataFrame(results_base)
-#             st.dataframe(dfb, use_container_width=True)
-#             st.download_button("📥 Download Base List", dfb.to_csv(index=False), "BasePrice.csv", "text/csv")
-
-#         st.subheader("🟩 FS Detected Stocks")
-#         if results_fs:
-#             dfs = pd.DataFrame(results_fs)
-#             st.dataframe(dfs, use_container_width=True)
-#             st.download_button("📥 Download FS", dfs.to_csv(index=False), "FS_List.csv", "text/csv")
-
-#         st.subheader("🟥 SS Detected Stocks")
-#         if results_ss:
-#             dss = pd.DataFrame(results_ss)
-#             st.dataframe(dss, use_container_width=True)
-#             st.download_button("📥 Download SS", dss.to_csv(index=False), "SS_List.csv", "text/csv")
-
-#         if results_fs or results_ss:
-#             combined = pd.concat([pd.DataFrame(results_fs), pd.DataFrame(results_ss)], axis=0, ignore_index=True)
-#             st.download_button("📥 Download Combined FS + SS",
-#                                combined.to_csv(index=False),
-#                                "FS_SS_Combined.csv",
-#                                "text/csv")
 
 with tab3:
 
@@ -1610,6 +1334,7 @@ with tab3:
         return fig
 
 
+
     # def plot_chart_with_signals(df, sr_levels, annotated_df, title, show_volume=True, show_all_levels=False):
     #     fig = go.Figure()
 
@@ -1774,6 +1499,106 @@ with tab3:
 
 
 
+# with tab4:
+#     st.title("Financial Year SR Levels Export (All Nifty 500)")
+
+#     nifty500_symbols = get_nifty500_symbols()
+
+#     # FY dropdown
+#     fy_options = [f"{fy}-{fy+1}" for fy in range(dt.datetime.now().year - 6, dt.datetime.now().year)]
+#     selected_fy = st.selectbox("Select Financial Year:", fy_options, index=len(fy_options)-1)
+
+#     if st.button("Fetch & Show All Levels"):
+#         st.info(f"Fetching 1-year history for all Nifty 500 symbols for FY {selected_fy}...")
+#         progress = st.progress(0)
+#         results = []
+#         failed_symbols = []
+#         total = len(nifty500_symbols)
+
+#         # Fetch CMP for all symbols in one API call
+#         all_symbols_str = ",".join([f"NSE:{s}-EQ" for s in nifty500_symbols])
+#         cmp_data = fyers.quotes({"symbols": all_symbols_str})
+#         cmp_map = {}
+#         if cmp_data.get("s") == "ok":
+#             for d in cmp_data["d"]:
+#                 sym = d["n"].split(":")[1].split("-")[0]
+#                 price = d.get("v", {}).get("lp", None)
+#                 if price is not None:
+#                     cmp_map[sym] = float(price)
+
+#         # Process each stock for selected FY
+#         def process_stock(symbol_name):
+#             fy_start = int(selected_fy.split("-")[0])
+#             fy_end   = int(selected_fy.split("-")[1])
+#             symbol = f"NSE:{symbol_name}-EQ"
+
+#             df = fetch_month_data(symbol, f"{fy_start}-04-01", f"{fy_end}-03-31")
+#             if df.empty:
+#                 failed_symbols.append(symbol_name)
+#                 print(f"NO DATA: {symbol_name}")
+#                 return None
+
+#             sr = calculate_sr_levels(df)
+#             cmp_price = cmp_map.get(symbol_name, None)
+#             if cmp_price is None:
+#                 failed_symbols.append(symbol_name)
+#                 print(f"NO CMP: {symbol_name}")
+#                 return None
+
+#             # Build row for table/export
+#             row = {
+#                 "FY"        : selected_fy,
+#                 "Symbol"    : symbol_name,
+#                 "% Change"  : sr.get("% Change"),
+#                 "CMP"       : round(cmp_price, 2),
+#                 **{f"L{i}": sr.get(f"L{i}") for i in range(1,7)},
+#                 "Average"   : sr.get("Average"),
+#                 "High (Ref)": sr.get("High (Ref)"),  # ADDED + will be placed after Average
+#                 **{f"P{i}": sr.get(f"P{i}") for i in range(1,7)}
+#             }
+#             return row
+
+#         # Run multithreaded fetch/test
+#         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+#             futures = {executor.submit(process_stock, s): s for s in nifty500_symbols}
+#             for i, future in enumerate(concurrent.futures.as_completed(futures)):
+#                 res = future.result()
+#                 if res:
+#                     results.append(res)
+#                 progress.progress((i + 1) / total)
+
+#         # Show results
+#         if results:
+#             df_results = pd.DataFrame(results)
+
+#             # Reorder columns: place High (Ref) right after Average
+#             desired_order = [
+#                 "FY", "Symbol", "% Change", "CMP",
+#                 "L6", "L5", "L4", "L3", "L2", "L1",
+#                 "Average", "High (Ref)",
+#                 "P1", "P2", "P3", "P4", "P5", "P6"
+#             ]
+#             df_results = df_results[[c for c in desired_order if c in df_results.columns]]
+
+#             st.success(f"Found {len(df_results)} valid symbols for FY {selected_fy}")
+#             st.dataframe(df_results, use_container_width=True)
+
+#             # Generate Excel file in memory for download
+#             from io import BytesIO
+#             buffer = BytesIO()
+#             with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+#                 df_results.to_excel(writer, index=False, sheet_name="SR Levels")
+#             buffer.seek(0)
+
+#             st.download_button(
+#                 label="Download Excel",
+#                 data=buffer,
+#                 file_name="FY_Nifty500_SR_Levels.xlsx",
+#                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+#             )
+#         else:
+#             st.warning("No data returned for selected FY. Check terminal logs for skipped symbols.")
+
 with tab4:
     st.title("Financial Year SR Levels Export (All Nifty 500)")
 
@@ -1875,8 +1700,6 @@ with tab4:
 
         else:
             st.warning("No valid symbols found for selected FY.")
-
-
 
 
 
