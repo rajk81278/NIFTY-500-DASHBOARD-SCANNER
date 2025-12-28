@@ -1510,121 +1510,128 @@ with tab3:
 # with tab4:
 #     st.title("Financial Year SR Levels Export (All Nifty 500)")
 
-#     nifty500_symbols = get_nifty500_symbols()
+#     stock_symbols = get_nifty500_symbols()
+#     yahoo_symbols = [s + ".NS" for s in stock_symbols]
 
-#     # FY dropdown
-#     fy_options = [f"{fy}-{fy+1}" for fy in range(dt.datetime.now().year - 6, dt.datetime.now().year)]
-#     selected_fy = st.selectbox("Select Financial Year:", fy_options, index=len(fy_options)-1)
+#     selected_fy = st.selectbox(
+#         "Select Financial Year:",
+#         [f"{fy}-{fy+1}" for fy in range(dt.datetime.now().year - 6, dt.datetime.now().year)],
+#         index=5
+#     )
+
+#     fy_start = f"{selected_fy.split('-')[0]}-04-01"
+#     fy_end   = f"{selected_fy.split('-')[1]}-03-31"
 
 #     if st.button("Fetch & Show All Levels"):
-#         st.info(f"Fetching 1-year history for all Nifty 500 symbols for FY {selected_fy}...")
+
+
 #         progress = st.progress(0)
 #         results = []
-#         failed_symbols = []
-#         total = len(nifty500_symbols)
+#         no_data = []
+#         total = len(yahoo_symbols)
 
-#         # Fetch CMP for all symbols in one API call
-#         all_symbols_str = ",".join([f"NSE:{s}-EQ" for s in nifty500_symbols])
-#         cmp_data = fyers.quotes({"symbols": all_symbols_str})
-#         cmp_map = {}
-#         if cmp_data.get("s") == "ok":
-#             for d in cmp_data["d"]:
-#                 sym = d["n"].split(":")[1].split("-")[0]
-#                 price = d.get("v", {}).get("lp", None)
-#                 if price is not None:
-#                     cmp_map[sym] = float(price)
+#         for i, symbol in enumerate(yahoo_symbols):
+#             try:
+#                 df = yf.download(symbol, start=fy_start, end=fy_end, progress=False)
 
-#         # Process each stock for selected FY
-#         def process_stock(symbol_name):
-#             fy_start = int(selected_fy.split("-")[0])
-#             fy_end   = int(selected_fy.split("-")[1])
-#             symbol = f"NSE:{symbol_name}-EQ"
+#                 # FIXED MultiIndex flattening
+#                 if isinstance(df.columns, pd.MultiIndex):
+#                     df.columns = df.columns.droplevel(1)
 
-#             df = fetch_month_data(symbol, f"{fy_start}-04-01", f"{fy_end}-03-31")
-#             if df.empty:
-#                 failed_symbols.append(symbol_name)
-#                 print(f"NO DATA: {symbol_name}")
-#                 return None
+#                 # Minimum data requirement
+#                 if df.empty or len(df) < 30:
+#                     no_data.append(symbol.replace(".NS",""))
+#                     print("NO DATA:", symbol)
+#                     continue
 
-#             sr = calculate_sr_levels(df)
-#             cmp_price = cmp_map.get(symbol_name, None)
-#             if cmp_price is None:
-#                 failed_symbols.append(symbol_name)
-#                 print(f"NO CMP: {symbol_name}")
-#                 return None
+#                 # Rename for your SR function
+#                 df = df.rename(columns={
+#                     "Open": "open",
+#                     "High": "high",
+#                     "Low": "low",
+#                     "Close": "close",
+#                     "Volume": "volume"
+#                 })
 
-#             # Build row for table/export
-#             row = {
-#                 "FY"        : selected_fy,
-#                 "Symbol"    : symbol_name,
-#                 "% Change"  : sr.get("% Change"),
-#                 "CMP"       : round(cmp_price, 2),
-#                 **{f"L{i}": sr.get(f"L{i}") for i in range(1,7)},
-#                 "Average"   : sr.get("Average"),
-#                 "High (Ref)": sr.get("High (Ref)"),  # ADDED + will be placed after Average
-#                 **{f"P{i}": sr.get(f"P{i}") for i in range(1,7)}
-#             }
-#             return row
+#                 # Calculate SR using your shared function
+#                 sr = calculate_sr_levels(df)
 
-#         # Run multithreaded fetch/test
-#         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-#             futures = {executor.submit(process_stock, s): s for s in nifty500_symbols}
-#             for i, future in enumerate(concurrent.futures.as_completed(futures)):
-#                 res = future.result()
-#                 if res:
-#                     results.append(res)
-#                 progress.progress((i + 1) / total)
+#                 row = {
+#                     "FY"        : selected_fy,
+#                     "Symbol"    : symbol.replace(".NS",""),
+#                     "CMP"       : round(df["close"].iloc[-1], 2),
+#                     "Average"   : sr.get("Average"),
+#                     "High (Ref)": sr.get("High (Ref)"),  # Now placed next to Average
+#                     "% Change"  : sr.get("% Change"),
+#                     **{f"L{i}": sr.get(f"L{i}") for i in range(1,7)},
+#                     **{f"P{i}": sr.get(f"P{i}") for i in range(1,7)}
+#                 }
 
-#         # Show results
+#                 results.append(row)
+
+#             except Exception as e:
+#                 print("FAIL:", symbol, e)
+#                 no_data.append(symbol.replace(".NS",""))
+
+#             progress.progress((i + 1) / total)
+
+#         # Show final table + download option
 #         if results:
 #             df_results = pd.DataFrame(results)
 
-#             # Reorder columns: place High (Ref) right after Average
-#             desired_order = [
-#                 "FY", "Symbol", "% Change", "CMP",
-#                 "L6", "L5", "L4", "L3", "L2", "L1",
-#                 "Average", "High (Ref)",
-#                 "P1", "P2", "P3", "P4", "P5", "P6"
+#             # FIXED ORDER → High (Ref) after Average
+#             final_order = [
+#                 "FY","Symbol","L6","L5","L4","L3","L2","L1",
+#                 "Average","High (Ref)","P1","P2","P3","P4","P5","P6",
+#                 "% Change","CMP"
 #             ]
-#             df_results = df_results[[c for c in desired_order if c in df_results.columns]]
 
-#             st.success(f"Found {len(df_results)} valid symbols for FY {selected_fy}")
+#             df_results = df_results[[c for c in final_order if c in df_results.columns]]
+
+#             st.success(f"Processed {len(results)} symbols | Skipped {len(no_data)} (insufficient data)")
 #             st.dataframe(df_results, use_container_width=True)
 
-#             # Generate Excel file in memory for download
-#             from io import BytesIO
+#             # Create Excel in memory
 #             buffer = BytesIO()
 #             with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
 #                 df_results.to_excel(writer, index=False, sheet_name="SR Levels")
 #             buffer.seek(0)
 
+#             # Download Excel button
 #             st.download_button(
 #                 label="Download Excel",
 #                 data=buffer,
 #                 file_name="FY_Nifty500_SR_Levels.xlsx",
 #                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 #             )
+
 #         else:
-#             st.warning("No data returned for selected FY. Check terminal logs for skipped symbols.")
+#             st.warning("No valid symbols found for selected FY.")
+
 
 with tab4:
     st.title("Financial Year SR Levels Export (All Nifty 500)")
 
-    stock_symbols = get_nifty500_symbols()
+    import os
+    os.makedirs("log", exist_ok=True)  # ensure log folder exists
+
+    # Guard import for cloud
+    try:
+        import yfinance as yf
+    except ModuleNotFoundError:
+        st.error("Dependency missing: yfinance. Fix requirements.txt and redeploy.")
+        st.stop()
+
+    stock_symbols = get_nifty500_symbols()  # Nifty 500 list
     yahoo_symbols = [s + ".NS" for s in stock_symbols]
 
-    selected_fy = st.selectbox(
-        "Select Financial Year:",
-        [f"{fy}-{fy+1}" for fy in range(dt.datetime.now().year - 6, dt.datetime.now().year)],
-        index=5
-    )
+    fy_years = [f"{fy}-{fy+1}" for fy in range(dt.datetime.now().year - 6, dt.datetime.now().year)]
+    selected_fy = st.selectbox("Select Financial Year:", fy_years, index=5)
 
     fy_start = f"{selected_fy.split('-')[0]}-04-01"
     fy_end   = f"{selected_fy.split('-')[1]}-03-31"
 
     if st.button("Fetch & Show All Levels"):
-
-
         progress = st.progress(0)
         results = []
         no_data = []
@@ -1634,17 +1641,19 @@ with tab4:
             try:
                 df = yf.download(symbol, start=fy_start, end=fy_end, progress=False)
 
-                # FIXED MultiIndex flattening
+                # Flatten MultiIndex columns safely
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.droplevel(1)
 
-                # Minimum data requirement
+                # If still empty → log and skip
                 if df.empty or len(df) < 30:
-                    no_data.append(symbol.replace(".NS",""))
-                    print("NO DATA:", symbol)
+                    sym_clean = symbol.replace(".NS", "")
+                    print("NO DATA or insufficient:", sym_clean)
+                    no_data.append(sym_clean)
+                    progress.progress((i + 1) / total)
                     continue
 
-                # Rename for your SR function
+                # Normalize column names for SR engine
                 df = df.rename(columns={
                     "Open": "open",
                     "High": "high",
@@ -1653,60 +1662,61 @@ with tab4:
                     "Volume": "volume"
                 })
 
-                # Calculate SR using your shared function
+                # Compute SR levels
                 sr = calculate_sr_levels(df)
 
+                # Build result row
                 row = {
                     "FY"        : selected_fy,
                     "Symbol"    : symbol.replace(".NS",""),
                     "CMP"       : round(df["close"].iloc[-1], 2),
                     "Average"   : sr.get("Average"),
-                    "High (Ref)": sr.get("High (Ref)"),  # Now placed next to Average
+                    "High (Ref)": sr.get("High (Ref)"),
                     "% Change"  : sr.get("% Change"),
-                    **{f"L{i}": sr.get(f"L{i}") for i in range(1,7)},
-                    **{f"P{i}": sr.get(f"P{i}") for i in range(1,7)}
+                    **{f"L{j}": sr.get(f"L{j}") for j in range(1,7)},
+                    **{f"P{j}": sr.get(f"P{j}") for j in range(1,7)}
                 }
 
                 results.append(row)
 
             except Exception as e:
-                print("FAIL:", symbol, e)
-                no_data.append(symbol.replace(".NS",""))
+                sym_clean = symbol.replace(".NS","")
+                print("FAIL:", sym_clean, e)
+                no_data.append(sym_clean)
 
             progress.progress((i + 1) / total)
 
-        # Show final table + download option
+        # Show or export results
         if results:
             df_results = pd.DataFrame(results)
 
-            # FIXED ORDER → High (Ref) after Average
+            # Reorder columns properly
             final_order = [
                 "FY","Symbol","L6","L5","L4","L3","L2","L1",
                 "Average","High (Ref)","P1","P2","P3","P4","P5","P6",
                 "% Change","CMP"
             ]
-
             df_results = df_results[[c for c in final_order if c in df_results.columns]]
 
             st.success(f"Processed {len(results)} symbols | Skipped {len(no_data)} (insufficient data)")
             st.dataframe(df_results, use_container_width=True)
 
-            # Create Excel in memory
+            # Excel download
+            from io import BytesIO
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
                 df_results.to_excel(writer, index=False, sheet_name="SR Levels")
             buffer.seek(0)
 
-            # Download Excel button
             st.download_button(
                 label="Download Excel",
                 data=buffer,
-                file_name="FY_Nifty500_SR_Levels.xlsx",
+                file_name=f"SR_Levels_{selected_fy}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
         else:
-            st.warning("No valid symbols found for selected FY.")
+            st.warning("No valid symbols found for selected FY. Check logs for skipped symbols.")
+
 
 
 
