@@ -410,12 +410,30 @@ st.title("Weekly S/R BASE → BUY Engine")
 base_year = st.selectbox("Select Base FY", ["2020-2021","2021-2022","2022-2023","2023-2024","2024-2025"])
 march_year = st.selectbox("Select March Close Year", [2023,2024,2025,2026], index=1)
 
-# symbol selection
+# # symbol selection
+# @st.cache_data(ttl=86400)
+# def get_nifty500_symbols():
+#     url = "https://nsearchives.nseindia.com/content/indices/ind_nifty500list.csv"
+#     headers = {
+#         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+#         "Referer": "https://www.nseindia.com/",
+#     }
+#     s = requests.Session()
+#     try:
+#         s.get("https://www.nseindia.com", headers=headers, timeout=5)
+#         r = s.get(url, headers=headers, timeout=10)
+#         df = pd.read_csv(StringIO(r.text))
+#         stock_list = df['Symbol'].dropna().unique().tolist()
+#         stock_list.sort()
+#         return stock_list
+#     except Exception:
+#         return ["SBIN", "TCS", "RELIANCE"]
+
 @st.cache_data(ttl=86400)
 def get_nifty500_symbols():
     url = "https://nsearchives.nseindia.com/content/indices/ind_nifty500list.csv"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "User-Agent": "Mozilla/5.0",
         "Referer": "https://www.nseindia.com/",
     }
     s = requests.Session()
@@ -426,7 +444,7 @@ def get_nifty500_symbols():
         stock_list = df['Symbol'].dropna().unique().tolist()
         stock_list.sort()
         return stock_list
-    except Exception:
+    except:
         return ["SBIN", "TCS", "RELIANCE"]
 
 symbols = st.selectbox("Select symbol", get_nifty500_symbols(), index=0)
@@ -1968,5 +1986,6 @@ if st.button("Run Weekly Backtest"):
 #     data=st.session_state.trade_stocks[selected]
 #     st.dataframe(data["trades"],use_container_width=True)
 #     st.plotly_chart(plot_chart(data["df"],data["sr"],f"{selected} Weekly Chart"),use_container_width=True)
+
 
 
