@@ -282,6 +282,7 @@ if st.button("Run SR Scanner"):
     with st.spinner("Scanning NIFTY 500 stocks..."):
         for sym in symbols:
             df = yf.download(sym + ".NS", period="max", interval="1wk", progress=False)
+            df.index = df.index.tz_localize(None)
 
             if df.empty:
                 continue
@@ -300,7 +301,11 @@ if st.button("Run SR Scanner"):
             levels = sorted(sr.values())
 
             # ---- Get nearest weekly candle <= selected date ----
-            day = df[df.index.date <= selected_date]
+            # day = df[df.index.date <= selected_date]
+
+            selected_dt = pd.to_datetime(selected_date)
+            day = df[df.index <= selected_dt]
+
             if day.empty:
                 continue
 
@@ -340,3 +345,4 @@ if st.button("Run SR Scanner"):
 
     col4.subheader(f"🔵 High Touch UL ({len(touch_UL)})")
     col4.write(touch_UL)
+
