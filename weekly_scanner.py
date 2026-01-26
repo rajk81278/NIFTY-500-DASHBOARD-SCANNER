@@ -303,11 +303,20 @@ if st.button("Run SR Scanner"):
             # ---- Get nearest weekly candle <= selected date ----
             # day = df[df.index.date <= selected_date]
 
-            selected_dt = pd.to_datetime(selected_date)
-            day = df[df.index <= selected_dt]
+            # selected_dt = pd.to_datetime(selected_date)
+            # day = df[df.index <= selected_dt]
 
+            # if day.empty:
+            #     continue
+            selected_dt = pd.to_datetime(selected_date)
+            last_dt = df.index.max()
+            
+            use_dt = min(selected_dt, last_dt)
+            day = df[df.index <= use_dt]
+            
             if day.empty:
                 continue
+
 
             day = day.iloc[-1]
             c, l, h = day[["close", "low", "high"]]
@@ -346,8 +355,7 @@ if st.button("Run SR Scanner"):
     col4.subheader(f"🔵 High Touch UL ({len(touch_UL)})")
     col4.write(touch_UL)
 
-st.write("Total symbols fetched:", len(symbols))
-st.write("First 10 symbols:", symbols[:10])
+
 
 
 
