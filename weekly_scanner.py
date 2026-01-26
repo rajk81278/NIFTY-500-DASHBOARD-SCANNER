@@ -346,4 +346,8 @@ if st.button("Run SR Scanner"):
     col4.subheader(f"🔵 High Touch UL ({len(touch_UL)})")
     col4.write(touch_UL)
 
+st.write("Total symbols fetched:", len(symbols))
+st.write("First 10 symbols:", symbols[:10])
+
+
 
