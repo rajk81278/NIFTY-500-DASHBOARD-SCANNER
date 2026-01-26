@@ -192,6 +192,10 @@
 
 # streamlit run weekly_scanner.py
 
+
+
+# streamlit run weekly_scanner.py
+
 import streamlit as st
 import pandas as pd
 import yfinance as yf
