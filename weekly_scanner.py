@@ -282,7 +282,7 @@ if st.button("Run SR Scanner"):
     with st.spinner("Scanning NIFTY 500 stocks..."):
         for sym in symbols:
             df = yf.download(sym + ".NS", period="max", interval="1wk", progress=False)
-            df.index = df.index.tz_localize(None)
+            # df.index = df.index.tz_localize(None)
 
             if df.empty:
                 continue
@@ -345,4 +345,5 @@ if st.button("Run SR Scanner"):
 
     col4.subheader(f"🔵 High Touch UL ({len(touch_UL)})")
     col4.write(touch_UL)
+
 
